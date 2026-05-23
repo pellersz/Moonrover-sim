@@ -1,0 +1,13 @@
+[package]
+name = "broooooooooooooooooooooooooooooooooo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rabbitmq-stream-client = "0.11.0"
+tokio = { version = "1.43.1", features = ["rt", "rt-multi-thread", "macros"] }
+futures = "0.3.30"
+rustls-webpki = "0.103.13"
+rand = "0.10.1"
+priority-queue = "2.7.0"
+ordered-float = "5.3.0"
