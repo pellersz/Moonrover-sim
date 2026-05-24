@@ -1,14 +1,17 @@
+mod client;
 mod community;
+mod cons;
 mod map;
 mod moon_walker;
-mod moon_walker_out_comm;
+mod prod;
 mod server;
 
 use std::process::exit;
 
-use crate::moon_walker::MoonWalker;
+use crate::{client::Client, moon_walker::MoonWalker, server::Server};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         println!("Program type unspecified");
@@ -17,12 +20,15 @@ fn main() {
 
     match args[1].as_str() {
         "moon-walker" => {
-            MoonWalker::run_moon_walker();
+            MoonWalker::run_moon_walker().await;
         }
         "server" => {
-            println!("server started");
+            Server::run_server().await;
         }
-        "community" => {
+        "client-ui" => {
+            Client::run_client().await;
+        }
+        "client-cli" => {
             println!("community started");
         }
         _ => {

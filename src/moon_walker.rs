@@ -1,10 +1,11 @@
+use std::time::{Duration, Instant};
 use std::{cmp::Ordering, hash::Hash};
 
 use ordered_float::NotNan;
 use std::collections::BinaryHeap;
 
 use crate::map::Map;
-use crate::moon_walker_out_comm::MoonWalkerOutCommunicator;
+use crate::prod::Prod;
 
 static DIRS: [[i16; 2]; 4] = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 
@@ -34,15 +35,17 @@ pub struct MoonWalker<'a> {
     y_dest: i16,
     map: &'a Map,
     path: Vec<(i16, i16)>,
+    progress: usize,
     distances: Vec<Vec<NotNan<f32>>>,
     distances_from_start: Vec<Vec<NotNan<f32>>>,
     distance_heuristics: Vec<Vec<NotNan<f32>>>,
     neighbour_distances: Vec<Vec<[NotNan<f32>; 4]>>,
     best_neighbours: Vec<Vec<i8>>,
+    comm_out: Prod,
 }
 
 impl<'a> MoonWalker<'_> {
-    fn new(map: &'_ Map) -> MoonWalker<'_> {
+    async fn new(map: &'_ Map) -> MoonWalker<'_> {
         let starter = map.dim as i16 / 2;
 
         let mut distances: Vec<Vec<NotNan<f32>>> = Vec::with_capacity(map.dim);
@@ -65,11 +68,13 @@ impl<'a> MoonWalker<'_> {
             y_dest: starter,
             map: map,
             path: vec![],
+            progress: 0,
             distances: distances,
             distances_from_start,
             distance_heuristics: distance_heuristics,
             neighbour_distances: neighbour_distances,
-            best_neighbours,
+            best_neighbours: best_neighbours,
+            comm_out: Prod::new("moon-walker-out").await,
         };
 
         for i in 0..map.dim {
@@ -169,7 +174,7 @@ impl<'a> MoonWalker<'_> {
         }
     }
 
-    pub fn change_destination(&mut self, x: i16, y: i16) {
+    async fn change_destination(&mut self, x: i16, y: i16) {
         for i in 0..self.map.dim {
             for j in 0..self.map.dim {
                 self.distances[i][j] = self.euc_dist(x, y, i as i16, j as i16);
@@ -181,22 +186,54 @@ impl<'a> MoonWalker<'_> {
         self.y_dest = y;
         self.distances_from_start[self.y as usize][self.x as usize] = NotNan::new(0.0).unwrap();
         self.a_star(x, y);
+        self.progress = 0;
+        self.send_path_report().await;
     }
 
-    pub async fn run_moon_walker() -> Result<(), ()> {
+    async fn send_pos_report(&mut self) {
+        self.comm_out
+            .send(&format!(
+                "{},{},{},{},{}",
+                self.x, self.y, self.x_dest, self.y_dest, self.map.dim
+            ))
+            .await;
+    }
+
+    async fn send_path_report(&mut self) {
+        let msg: String = self
+            .path
+            .iter()
+            .rev()
+            .map(|x| format!("({}, {}), ", x.0, x.1))
+            .collect();
+        self.comm_out.send(&msg[..msg.len() - 2]).await;
+    }
+
+    fn progress_further(&mut self) {
+        if self.progress < self.path.len() - 1 {
+            self.progress += 1;
+            let new_pos = self.path[self.path.len() - 1 - self.progress];
+            (self.x, self.y) = (new_pos.0, new_pos.1);
+        }
+    }
+
+    pub async fn run_moon_walker() {
         let map = Map::new(256);
-        let mut moon_walker = MoonWalker::new(&map);
-        let moon_walker_out_communicator = MoonWalkerOutCommunicator::new().await;
+        let mut moon_walker = MoonWalker::new(&map).await;
+        moon_walker.send_pos_report().await;
+        let mut start = Instant::now();
+
         loop {
-            let (new_x, new_y) = (50i16, 100i16);
-            if (moon_walker.x, moon_walker.y) != (new_x, new_y) {
-                moon_walker.change_destination(50, 100);
-                let msg: String = moon_walker
-                    .path
-                    .iter()
-                    .map(|x| format!("({}, {}), ", x.0, x.1))
-                    .collect();
-                moon_walker_out_communicator.send(msg.as_str()).await;
+            let (new_dest_x, new_dest_y) = (50i16, 100i16);
+            if (moon_walker.x_dest, moon_walker.y_dest) != (new_dest_x, new_dest_y) {
+                println!("changed destination to {} {}", new_dest_x, new_dest_y);
+                moon_walker.change_destination(50, 100).await;
+            }
+            if Instant::now() - start > Duration::from_millis(500) {
+                moon_walker.progress_further();
+                moon_walker.send_pos_report().await;
+                println!("still sending");
+                start = Instant::now();
             }
         }
     }
