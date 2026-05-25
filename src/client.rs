@@ -78,13 +78,17 @@ impl MoonWalkRepr {
     fn set_pos(&mut self, x: i16, y: i16) {
         if (x, y) != self.coords {
             if self.coords == self.dest_coords {
+                //print!("pos {} {} {} {} X", x, y, self.coords.0, self.coords.1);
                 self.change_buf(self.coords.0 as usize, self.coords.1 as usize, 'X' as u8);
             } else {
+                //print!("pos {} {} {} {}  ", x, y, self.coords.0, self.coords.1);
                 self.change_buf(self.coords.0 as usize, self.coords.1 as usize, ' ' as u8);
             }
             if (x, y) == self.dest_coords {
+                //print!("pos {} {} {} {} Q", x, y, self.coords.0, self.coords.1);
                 self.change_buf(x as usize, y as usize, 'Q' as u8);
             } else {
+                //print!("pos {} {} {} {} O", x, y, self.coords.0, self.coords.1);
                 self.change_buf(x as usize, y as usize, 'O' as u8);
             }
 
@@ -95,13 +99,21 @@ impl MoonWalkRepr {
     fn set_dest(&mut self, x_dest: i16, y_dest: i16) {
         if (x_dest, y_dest) != self.dest_coords {
             if self.coords == self.dest_coords {
+                //print!("dest {} {} O", x_dest, y_dest);
                 self.change_buf(self.coords.0 as usize, self.coords.1 as usize, 'O' as u8);
             } else {
-                self.change_buf(self.coords.0 as usize, self.coords.1 as usize, ' ' as u8);
+                //print!("dest {} {}  ", x_dest, y_dest);
+                self.change_buf(
+                    self.dest_coords.0 as usize,
+                    self.dest_coords.1 as usize,
+                    ' ' as u8,
+                );
             }
             if (x_dest, y_dest) == self.coords {
+                //print!("dest {} {} Q", x_dest, y_dest);
                 self.change_buf(x_dest as usize, y_dest as usize, 'Q' as u8);
             } else {
+                //print!("dest {} {} X", x_dest, y_dest);
                 self.change_buf(x_dest as usize, y_dest as usize, 'X' as u8);
             }
 
@@ -122,14 +134,11 @@ impl MoonWalkRepr {
         y_dest = (y_dest as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as i16;
 
         let mut res = false;
-        if (x, y) != self.coords {
+        if (x, y) != self.coords || (x_dest, y_dest) != self.dest_coords {
             res = true;
-            self.set_pos(x, y);
         }
-        if (x_dest, y_dest) != self.dest_coords {
-            res = true;
-            self.set_dest(x_dest, y_dest);
-        }
+        self.set_pos(x, y);
+        self.set_dest(x_dest, y_dest);
 
         return res;
     }
@@ -158,14 +167,12 @@ impl ClientUI {
         cons.move_offset_curr().await;
         message = cons.read().await;
 
-        let mut res = ClientUI {
+        let args = ClientUI::parse_position(&message);
+        let res = ClientUI {
             cons: cons,
-            repr: MoonWalkRepr::new(0, 0, 0, 0, dim),
+            repr: MoonWalkRepr::new(args.0, args.1, args.2, args.3, dim),
         };
-        let func_args = ClientUI::parse_position(&message);
 
-        res.repr
-            .update_stuff(func_args.0, func_args.1, func_args.2, func_args.3);
         res.repr.draw();
         return res;
     }
@@ -194,15 +201,23 @@ impl ClientUI {
         let mut client = ClientUI::new().await;
         loop {
             let message = client.cons.read().await;
-            let func_args = ClientUI::parse_position(&message);
-            if message.len() != 0 {
-                if client
-                    .repr
-                    .update_stuff(func_args.0, func_args.1, func_args.2, func_args.3)
-                {
-                    client.repr.erase();
-                    client.repr.draw();
+            match message[0] as char {
+                's' => {
+                    let func_args = ClientUI::parse_position(&message);
+                    if message.len() != 0 {
+                        if client.repr.update_stuff(
+                            func_args.0,
+                            func_args.1,
+                            func_args.2,
+                            func_args.3,
+                        ) {
+                            client.repr.erase();
+                            client.repr.draw();
+                        }
+                    }
                 }
+                'p' => {}
+                _ => {}
             }
         }
     }
@@ -222,15 +237,15 @@ impl ClientControl {
     pub async fn run_client_control() {
         let client_control = ClientControl::new().await;
         println!("Command away:");
-        let mut str = String::new();
         loop {
-            io::stdin().read_line(&mut str).unwrap();
-            str.pop();
-            let mut nums = str.split(|x| x == ' ');
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            input.pop();
+            let mut nums = input.split(|x| x == ' ');
             if let (Some(first), Some(second)) = (nums.next(), nums.next()) {
                 if let (Ok(_), Ok(_)) = (first.parse::<i16>(), second.parse::<i16>()) {
-                    client_control.voter.send(&str).await;
-                    println!("sent a message to the server: {}", &str);
+                    client_control.voter.send(&input).await;
+                    println!("sent a message to the server: {}", &input);
                 } else {
                     println!("Ok, we need two numbers");
                 }

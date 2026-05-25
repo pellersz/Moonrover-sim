@@ -13,10 +13,10 @@ pub struct Server {
 impl Server {
     pub async fn run_server() {
         let mut server = Server {
-            moon_walker_consumer: Cons::new("moon-walker-out").await,
-            client_consumer: Cons::new("client-votes").await,
             moon_walker_producer: Prod::new("moon-walker-in").await,
             client_producer: Prod::new("server-client-out").await,
+            moon_walker_consumer: Cons::new("moon-walker-out").await,
+            client_consumer: Cons::new("client-votes").await,
             moon_dim: 0,
         };
 

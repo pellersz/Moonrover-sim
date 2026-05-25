@@ -232,13 +232,10 @@ impl<'a> MoonWalker<'_> {
         let mut start = Instant::now();
 
         loop {
-            let message = "";
+            let message;
             unsafe {
-                let messag =
+                message =
                     String::from_utf8_unchecked(moon_walker.comm_in.read_non_blocking().await);
-                if messag.len() > 0 {
-                    println!("a {}", messag);
-                }
             }
             if message.len() != 0 {
                 let mut nums = message.split(|x| x == ' ');
@@ -248,11 +245,11 @@ impl<'a> MoonWalker<'_> {
                 );
                 if (moon_walker.x_dest, moon_walker.y_dest) != (new_dest_x, new_dest_y) {
                     println!("changed destination to {} {}", new_dest_x, new_dest_y);
-                    moon_walker.change_destination(50, 100).await;
+                    moon_walker.change_destination(new_dest_x, new_dest_y).await;
                 }
             }
 
-            if Instant::now() - start > Duration::from_millis(5000) {
+            if Instant::now() - start > Duration::from_millis(500) {
                 moon_walker.progress_further();
                 moon_walker.send_pos_report().await;
                 start = Instant::now();
