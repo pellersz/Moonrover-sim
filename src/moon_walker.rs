@@ -4,6 +4,7 @@ use std::{cmp::Ordering, hash::Hash};
 use ordered_float::NotNan;
 use std::collections::BinaryHeap;
 
+use crate::cons::Cons;
 use crate::map::Map;
 use crate::prod::Prod;
 
@@ -42,6 +43,7 @@ pub struct MoonWalker<'a> {
     neighbour_distances: Vec<Vec<[NotNan<f32>; 4]>>,
     best_neighbours: Vec<Vec<i8>>,
     comm_out: Prod,
+    comm_in: Cons,
 }
 
 impl<'a> MoonWalker<'_> {
@@ -67,7 +69,7 @@ impl<'a> MoonWalker<'_> {
             x_dest: starter,
             y_dest: starter,
             map: map,
-            path: vec![],
+            path: vec![(starter, starter)],
             progress: 0,
             distances: distances,
             distances_from_start,
@@ -75,6 +77,7 @@ impl<'a> MoonWalker<'_> {
             neighbour_distances: neighbour_distances,
             best_neighbours: best_neighbours,
             comm_out: Prod::new("moon-walker-out").await,
+            comm_in: Cons::new("moon-walker-in").await,
         };
 
         for i in 0..map.dim {
@@ -197,16 +200,21 @@ impl<'a> MoonWalker<'_> {
                 self.x, self.y, self.x_dest, self.y_dest, self.map.dim
             ))
             .await;
+        println!(
+            "sent to the server: {},{},{},{},{}",
+            self.x, self.y, self.x_dest, self.y_dest, self.map.dim
+        );
     }
 
     async fn send_path_report(&mut self) {
-        let msg: String = self
+        let message: String = self
             .path
             .iter()
             .rev()
             .map(|x| format!("({}, {}), ", x.0, x.1))
             .collect();
-        self.comm_out.send(&msg[..msg.len() - 2]).await;
+        self.comm_out.send(&message[..message.len() - 2]).await;
+        println!("sent to the server: {}", &message[..message.len() - 2])
     }
 
     fn progress_further(&mut self) {
@@ -224,15 +232,29 @@ impl<'a> MoonWalker<'_> {
         let mut start = Instant::now();
 
         loop {
-            let (new_dest_x, new_dest_y) = (50i16, 100i16);
-            if (moon_walker.x_dest, moon_walker.y_dest) != (new_dest_x, new_dest_y) {
-                println!("changed destination to {} {}", new_dest_x, new_dest_y);
-                moon_walker.change_destination(50, 100).await;
+            let message = "";
+            unsafe {
+                let messag =
+                    String::from_utf8_unchecked(moon_walker.comm_in.read_non_blocking().await);
+                if messag.len() > 0 {
+                    println!("a {}", messag);
+                }
             }
-            if Instant::now() - start > Duration::from_millis(500) {
+            if message.len() != 0 {
+                let mut nums = message.split(|x| x == ' ');
+                let (new_dest_x, new_dest_y) = (
+                    nums.next().unwrap().parse::<i16>().unwrap(),
+                    nums.next().unwrap().parse::<i16>().unwrap(),
+                );
+                if (moon_walker.x_dest, moon_walker.y_dest) != (new_dest_x, new_dest_y) {
+                    println!("changed destination to {} {}", new_dest_x, new_dest_y);
+                    moon_walker.change_destination(50, 100).await;
+                }
+            }
+
+            if Instant::now() - start > Duration::from_millis(5000) {
                 moon_walker.progress_further();
                 moon_walker.send_pos_report().await;
-                println!("still sending");
                 start = Instant::now();
             }
         }

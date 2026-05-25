@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use rabbitmq_stream_client::{
     Environment, NoDedup, Producer,
     error::StreamCreateError,
@@ -42,10 +40,10 @@ impl Prod {
         }
     }
 
-    pub async fn send(&self, msg: &str) {
+    pub async fn send(&self, message: &str) {
         let _ = self
             .producer
-            .send_with_confirm(Message::builder().body(msg).build())
+            .send_with_confirm(Message::builder().body(message).build())
             .await;
         return;
     }

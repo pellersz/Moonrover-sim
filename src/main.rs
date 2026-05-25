@@ -1,5 +1,4 @@
 mod client;
-mod community;
 mod cons;
 mod map;
 mod moon_walker;
@@ -8,8 +7,13 @@ mod server;
 
 use std::process::exit;
 
-use crate::{client::Client, moon_walker::MoonWalker, server::Server};
+use crate::{
+    client::{ClientControl, ClientUI},
+    moon_walker::MoonWalker,
+    server::Server,
+};
 
+// TODO: do something with the casting
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -26,10 +30,10 @@ async fn main() {
             Server::run_server().await;
         }
         "client-ui" => {
-            Client::run_client().await;
+            ClientUI::run_client_ui().await;
         }
         "client-cli" => {
-            println!("community started");
+            ClientControl::run_client_control().await;
         }
         _ => {
             println!("No such type");

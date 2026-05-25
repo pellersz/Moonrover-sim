@@ -1,12 +1,11 @@
-use crate::cons::Cons;
+use std::io;
+
+use crate::{cons::Cons, prod::Prod};
 
 struct MoonWalkRepr {
     coords: (i16, i16),
     dest_coords: (i16, i16),
     dim: i16,
-    char_size: usize,
-    eraser: String,
-    dim_size: usize,
     map_buf: Vec<u8>,
 }
 
@@ -20,26 +19,25 @@ impl MoonWalkRepr {
     fn new(mut x: i16, mut y: i16, mut x_dest: i16, mut y_dest: i16, dim: i16) -> MoonWalkRepr {
         let char_size =
             ((MoonWalkRepr::RES + 2 + dim.to_string().len()) * (MoonWalkRepr::RES + 2)) as usize;
-        let eraser = "\x08".repeat(char_size);
         let dim_size = dim.to_string().len();
 
         let mut b = string_builder::Builder::new(char_size);
 
-        for i in 0..dim {
-            b.append(" ".repeat(dim as usize));
+        for i in 0..MoonWalkRepr::RES {
+            b.append(" ".repeat(MoonWalkRepr::RES));
             b.append("|");
             if i == 0 {
-                b.append("0");
+                b.append("1");
                 b.append(" ".repeat(dim_size - 1));
-            } else if i == dim - 1 {
-                b.append(i.to_string());
+            } else if i == MoonWalkRepr::RES - 1 {
+                b.append(dim.to_string());
             } else {
                 b.append(" ".repeat(dim_size));
             }
             b.append('\n');
         }
 
-        b.append("-".repeat(dim as usize));
+        b.append("-".repeat(MoonWalkRepr::RES as usize));
         b.append(" ".repeat(1 + dim_size));
         b.append('\n');
 
@@ -60,9 +58,6 @@ impl MoonWalkRepr {
             coords: (x, y),
             dest_coords: (x_dest, y_dest),
             dim: dim,
-            char_size: char_size,
-            eraser: eraser,
-            dim_size: dim_size,
             map_buf: map_buf,
         };
 
@@ -84,8 +79,15 @@ impl MoonWalkRepr {
         if (x, y) != self.coords {
             if self.coords == self.dest_coords {
                 self.change_buf(self.coords.0 as usize, self.coords.1 as usize, 'X' as u8);
+            } else {
+                self.change_buf(self.coords.0 as usize, self.coords.1 as usize, ' ' as u8);
+            }
+            if (x, y) == self.dest_coords {
+                self.change_buf(x as usize, y as usize, 'Q' as u8);
+            } else {
                 self.change_buf(x as usize, y as usize, 'O' as u8);
             }
+
             self.coords = (x, y);
         }
     }
@@ -93,14 +95,17 @@ impl MoonWalkRepr {
     fn set_dest(&mut self, x_dest: i16, y_dest: i16) {
         if (x_dest, y_dest) != self.dest_coords {
             if self.coords == self.dest_coords {
-                self.change_buf(
-                    self.dest_coords.0 as usize,
-                    self.dest_coords.1 as usize,
-                    'O' as u8,
-                );
+                self.change_buf(self.coords.0 as usize, self.coords.1 as usize, 'O' as u8);
+            } else {
+                self.change_buf(self.coords.0 as usize, self.coords.1 as usize, ' ' as u8);
+            }
+            if (x_dest, y_dest) == self.coords {
+                self.change_buf(x_dest as usize, y_dest as usize, 'Q' as u8);
+            } else {
                 self.change_buf(x_dest as usize, y_dest as usize, 'X' as u8);
             }
-            self.coords = (x_dest, y_dest);
+
+            self.dest_coords = (x_dest, y_dest);
         }
     }
 
@@ -110,66 +115,127 @@ impl MoonWalkRepr {
         }
     }
 
+    fn update_stuff(&mut self, mut x: i16, mut y: i16, mut x_dest: i16, mut y_dest: i16) -> bool {
+        x = (x as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as i16;
+        y = (y as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as i16;
+        x_dest = (x_dest as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as i16;
+        y_dest = (y_dest as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as i16;
+
+        let mut res = false;
+        if (x, y) != self.coords {
+            res = true;
+            self.set_pos(x, y);
+        }
+        if (x_dest, y_dest) != self.dest_coords {
+            res = true;
+            self.set_dest(x_dest, y_dest);
+        }
+
+        return res;
+    }
+
     fn erase(&self) {
-        print!("{}", self.eraser);
+        print!("\x1B[{}A", MoonWalkRepr::RES + 2);
     }
 }
 
-pub struct Client {
+pub struct ClientUI {
     cons: Cons,
     repr: MoonWalkRepr,
 }
 
-impl Client {
+impl ClientUI {
     async fn new() -> Self {
-        let mut cons = Cons::new("moon-walker-out").await;
-        let mut msg = cons.read().await;
+        let mut cons = Cons::new("server-client-out").await;
+        let mut message = cons.read().await;
         let dim: i16;
         unsafe {
-            dim = String::from_utf8_unchecked(msg[2..].to_vec())
+            dim = String::from_utf8_unchecked(message[2..].to_vec())
                 .parse()
                 .unwrap();
         }
 
         cons.move_offset_curr().await;
-        msg = cons.read().await;
-        while msg.len() == 0 || msg[0] != 's' as u8 {
-            msg = cons.read().await;
-        }
+        message = cons.read().await;
 
-        let mut vals = msg[2..].split(|x| x.to_owned() == ',' as u8);
+        let mut res = ClientUI {
+            cons: cons,
+            repr: MoonWalkRepr::new(0, 0, 0, 0, dim),
+        };
+        let func_args = ClientUI::parse_position(&message);
+
+        res.repr
+            .update_stuff(func_args.0, func_args.1, func_args.2, func_args.3);
+        res.repr.draw();
+        return res;
+    }
+
+    fn parse_position(message: &Vec<u8>) -> (i16, i16, i16, i16) {
+        let mut vals = message[2..].split(|x| x.to_owned() == ',' as u8);
+        let (x, y, x_dest, y_dest): (i16, i16, i16, i16);
         unsafe {
-            let x: i16 = String::from_utf8_unchecked(vals.next().unwrap().to_vec())
+            x = String::from_utf8_unchecked(vals.next().unwrap().to_vec())
                 .parse()
                 .unwrap();
-            let y: i16 = String::from_utf8_unchecked(vals.next().unwrap().to_vec())
+            y = String::from_utf8_unchecked(vals.next().unwrap().to_vec())
                 .parse()
                 .unwrap();
-            let x_dest: i16 = String::from_utf8_unchecked(vals.next().unwrap().to_vec())
+            x_dest = String::from_utf8_unchecked(vals.next().unwrap().to_vec())
                 .parse()
                 .unwrap();
-            let y_dest: i16 = String::from_utf8_unchecked(vals.next().unwrap().to_vec())
+            y_dest = String::from_utf8_unchecked(vals.next().unwrap().to_vec())
                 .parse()
                 .unwrap();
+        }
+        (x, y, x_dest, y_dest)
+    }
 
-            Client {
-                cons: cons,
-                repr: MoonWalkRepr::new(x, y, x_dest, y_dest, dim),
+    pub async fn run_client_ui() {
+        let mut client = ClientUI::new().await;
+        loop {
+            let message = client.cons.read().await;
+            let func_args = ClientUI::parse_position(&message);
+            if message.len() != 0 {
+                if client
+                    .repr
+                    .update_stuff(func_args.0, func_args.1, func_args.2, func_args.3)
+                {
+                    client.repr.erase();
+                    client.repr.draw();
+                }
             }
         }
     }
+}
 
-    // Don't look at how inefficient this is, I know it is
+pub struct ClientControl {
+    voter: Prod,
+}
 
-    pub async fn run_client() {
-        let mut client = Client::new().await;
-        client.repr.draw();
+impl ClientControl {
+    async fn new() -> Self {
+        ClientControl {
+            voter: Prod::new("client-votes").await,
+        }
+    }
+
+    pub async fn run_client_control() {
+        let client_control = ClientControl::new().await;
+        println!("Command away:");
+        let mut str = String::new();
         loop {
-            let msg = client.cons.read().await;
-            if msg.len() != 0 {
-                unsafe {
-                    println!("{}", String::from_utf8_unchecked(msg.to_vec()));
+            io::stdin().read_line(&mut str).unwrap();
+            str.pop();
+            let mut nums = str.split(|x| x == ' ');
+            if let (Some(first), Some(second)) = (nums.next(), nums.next()) {
+                if let (Ok(_), Ok(_)) = (first.parse::<i16>(), second.parse::<i16>()) {
+                    client_control.voter.send(&str).await;
+                    println!("sent a message to the server: {}", &str);
+                } else {
+                    println!("Ok, we need two numbers");
                 }
+            } else {
+                println!("Ok, we need two numbers");
             }
         }
     }
