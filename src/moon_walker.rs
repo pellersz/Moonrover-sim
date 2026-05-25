@@ -12,8 +12,8 @@ static DIRS: [[i16; 2]; 4] = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 struct Node {
-    pub x: i16,
-    pub y: i16,
+    pub x: usize,
+    pub y: usize,
     pub f: NotNan<f32>,
 }
 
@@ -30,31 +30,31 @@ impl PartialOrd for Node {
 }
 
 pub struct MoonWalker<'a> {
-    x: i16,
-    y: i16,
-    x_dest: i16,
-    y_dest: i16,
+    x: usize,
+    y: usize,
+    x_dest: usize,
+    y_dest: usize,
     map: &'a Map,
-    path: Vec<(i16, i16)>,
+    path: Vec<(usize, usize)>,
     progress: usize,
     distances: Vec<Vec<NotNan<f32>>>,
     distances_from_start: Vec<Vec<NotNan<f32>>>,
     distance_heuristics: Vec<Vec<NotNan<f32>>>,
     neighbour_distances: Vec<Vec<[NotNan<f32>; 4]>>,
-    best_neighbours: Vec<Vec<i8>>,
+    best_neighbours: Vec<Vec<usize>>,
     comm_out: Prod,
     comm_in: Cons,
 }
 
 impl<'a> MoonWalker<'_> {
     async fn new(map: &'_ Map) -> MoonWalker<'_> {
-        let starter = map.dim as i16 / 2;
+        let starter = map.dim / 2;
 
         let mut distances: Vec<Vec<NotNan<f32>>> = Vec::with_capacity(map.dim);
         let mut distances_from_start: Vec<Vec<NotNan<f32>>> = Vec::with_capacity(map.dim);
         let mut distance_heuristics: Vec<Vec<NotNan<f32>>> = Vec::with_capacity(map.dim);
         let mut neighbour_distances: Vec<Vec<[NotNan<f32>; 4]>> = Vec::with_capacity(map.dim);
-        let mut best_neighbours: Vec<Vec<i8>> = Vec::with_capacity(map.dim);
+        let mut best_neighbours: Vec<Vec<usize>> = Vec::with_capacity(map.dim);
         for _ in 0..map.dim {
             distances.push(vec![NotNan::new(0.0).unwrap(); map.dim]);
             distances_from_start.push(vec![NotNan::new(f32::MAX).unwrap(); map.dim]);
@@ -83,20 +83,16 @@ impl<'a> MoonWalker<'_> {
         for i in 0..map.dim {
             for j in 0..map.dim {
                 if i > 0 {
-                    res.neighbour_distances[i][j][0] =
-                        res.euc_dist(j as i16, i as i16, j as i16, i as i16 - 1);
+                    res.neighbour_distances[i][j][0] = res.euc_dist(j, i, j, i - 1);
                 }
                 if j < res.map.dim - 1 {
-                    res.neighbour_distances[i][j][1] =
-                        res.euc_dist(j as i16, i as i16, j as i16 + 1, i as i16);
+                    res.neighbour_distances[i][j][1] = res.euc_dist(j, i, j + 1, i);
                 }
                 if i < res.map.dim - 1 {
-                    res.neighbour_distances[i][j][2] =
-                        res.euc_dist(j as i16, i as i16, j as i16, i as i16 + 1);
+                    res.neighbour_distances[i][j][2] = res.euc_dist(j, i, j, i + 1);
                 }
                 if j > 0 {
-                    res.neighbour_distances[i][j][3] =
-                        res.euc_dist(j as i16, i as i16, j as i16 - 1, i as i16);
+                    res.neighbour_distances[i][j][3] = res.euc_dist(j, i, j - 1, i);
                 }
             }
         }
@@ -104,11 +100,10 @@ impl<'a> MoonWalker<'_> {
         res
     }
 
-    fn euc_dist(&self, x1: i16, y1: i16, x2: i16, y2: i16) -> NotNan<f32> {
-        let x_dist = x1 - x2;
-        let y_dist = y1 - y2;
-        let z_dist =
-            self.map.heights[y1 as usize][x1 as usize] - self.map.heights[y2 as usize][x2 as usize];
+    fn euc_dist(&self, x1: usize, y1: usize, x2: usize, y2: usize) -> NotNan<f32> {
+        let x_dist = x1 as i16 - x2 as i16;
+        let y_dist = y1 as i16 - y2 as i16;
+        let z_dist = self.map.heights[y1][x1] as i16 - self.map.heights[y2][x2] as i16;
 
         NotNan::new(
             ((x_dist as i32 * x_dist as i32
@@ -119,26 +114,29 @@ impl<'a> MoonWalker<'_> {
         .unwrap()
     }
 
-    fn get_solution(&mut self, x_end: i16, y_end: i16) {
+    fn get_solution(&mut self, x_end: usize, y_end: usize) {
         self.path.clear();
 
         let mut prev = (x_end, y_end);
         loop {
             self.path.push(prev);
-            let dir_ind: usize = self.best_neighbours[prev.1 as usize][prev.0 as usize] as usize;
-            prev = (prev.0 - DIRS[dir_ind][0], prev.1 - DIRS[dir_ind][1]);
+            let dir_ind: usize = self.best_neighbours[prev.1][prev.0] as usize;
+            prev = (
+                (prev.0 as i16 - DIRS[dir_ind][0]) as usize,
+                (prev.1 as i16 - DIRS[dir_ind][1]) as usize,
+            );
             if prev == (self.x, self.y) {
                 break;
             }
         }
     }
 
-    fn a_star(&mut self, x_end: i16, y_end: i16) {
+    fn a_star(&mut self, x_end: usize, y_end: usize) {
         let mut q = BinaryHeap::new();
         q.push(Node {
             x: self.x,
             y: self.y,
-            f: self.distances[self.y as usize][self.x as usize],
+            f: self.distances[self.y][self.x],
         });
 
         while !q.is_empty() {
@@ -150,26 +148,26 @@ impl<'a> MoonWalker<'_> {
 
             for i in 0..4 {
                 let [x_dir, y_dir] = DIRS[i];
-                let x_neigh = x_dir + curr.x;
-                let y_neigh = y_dir + curr.y;
+                let x_neigh = x_dir + curr.x as i16;
+                let y_neigh = y_dir + curr.y as i16;
                 if x_neigh < 0
-                    || x_neigh == self.map.dim as i16
+                    || x_neigh as usize == self.map.dim
                     || y_neigh < 0
-                    || y_neigh == self.map.dim as i16
+                    || y_neigh as usize == self.map.dim
                 {
                     continue;
                 }
 
-                let new_g = self.distances_from_start[curr.y as usize][curr.x as usize]
-                    + self.neighbour_distances[curr.y as usize][curr.x as usize][i];
+                let new_g = self.distances_from_start[curr.y][curr.x]
+                    + self.neighbour_distances[curr.y][curr.x][i];
                 if new_g < self.distances_from_start[y_neigh as usize][x_neigh as usize] {
                     self.distances_from_start[y_neigh as usize][x_neigh as usize] = new_g;
                     self.distance_heuristics[y_neigh as usize][x_neigh as usize] =
-                        new_g + self.euc_dist(x_neigh, y_neigh, x_end, y_end);
-                    self.best_neighbours[y_neigh as usize][x_neigh as usize] = i as i8;
+                        new_g + self.euc_dist(x_neigh as usize, y_neigh as usize, x_end, y_end);
+                    self.best_neighbours[y_neigh as usize][x_neigh as usize] = i;
                     q.push(Node {
-                        x: x_neigh,
-                        y: y_neigh,
+                        x: x_neigh as usize,
+                        y: y_neigh as usize,
                         f: self.distance_heuristics[y_neigh as usize][x_neigh as usize],
                     });
                 }
@@ -177,17 +175,17 @@ impl<'a> MoonWalker<'_> {
         }
     }
 
-    async fn change_destination(&mut self, x: i16, y: i16) {
+    async fn change_destination(&mut self, x: usize, y: usize) {
         for i in 0..self.map.dim {
             for j in 0..self.map.dim {
-                self.distances[i][j] = self.euc_dist(x, y, i as i16, j as i16);
+                self.distances[i][j] = self.euc_dist(x, y, i, j);
                 self.distances_from_start[i][j] = NotNan::new(f32::MAX).unwrap();
             }
         }
 
         self.x_dest = x;
         self.y_dest = y;
-        self.distances_from_start[self.y as usize][self.x as usize] = NotNan::new(0.0).unwrap();
+        self.distances_from_start[self.y][self.x] = NotNan::new(0.0).unwrap();
         self.a_star(x, y);
         self.progress = 0;
         self.send_path_report().await;
@@ -240,8 +238,8 @@ impl<'a> MoonWalker<'_> {
             if message.len() != 0 {
                 let mut nums = message.split(|x| x == ' ');
                 let (new_dest_x, new_dest_y) = (
-                    nums.next().unwrap().parse::<i16>().unwrap(),
-                    nums.next().unwrap().parse::<i16>().unwrap(),
+                    nums.next().unwrap().parse::<usize>().unwrap(),
+                    nums.next().unwrap().parse::<usize>().unwrap(),
                 );
                 if (moon_walker.x_dest, moon_walker.y_dest) != (new_dest_x, new_dest_y) {
                     println!("changed destination to {} {}", new_dest_x, new_dest_y);

@@ -3,9 +3,9 @@ use std::io;
 use crate::{cons::Cons, prod::Prod};
 
 struct MoonWalkRepr {
-    coords: (i16, i16),
-    dest_coords: (i16, i16),
-    dim: i16,
+    coords: (usize, usize),
+    dest_coords: (usize, usize),
+    dim: usize,
     map_buf: Vec<u8>,
 }
 
@@ -13,12 +13,17 @@ impl MoonWalkRepr {
     const RES: usize = 48;
 
     fn change_buf(&mut self, x: usize, y: usize, c: u8) {
-        self.map_buf[(y * (MoonWalkRepr::RES + 2 + self.dim.to_string().len()) + x) as usize] = c;
+        self.map_buf[y * (MoonWalkRepr::RES + 2 + self.dim.to_string().len()) + x] = c;
     }
 
-    fn new(mut x: i16, mut y: i16, mut x_dest: i16, mut y_dest: i16, dim: i16) -> MoonWalkRepr {
-        let char_size =
-            ((MoonWalkRepr::RES + 2 + dim.to_string().len()) * (MoonWalkRepr::RES + 2)) as usize;
+    fn new(
+        mut x: usize,
+        mut y: usize,
+        mut x_dest: usize,
+        mut y_dest: usize,
+        dim: usize,
+    ) -> MoonWalkRepr {
+        let char_size = (MoonWalkRepr::RES + 2 + dim.to_string().len()) * (MoonWalkRepr::RES + 2);
         let dim_size = dim.to_string().len();
 
         let mut b = string_builder::Builder::new(char_size);
@@ -37,22 +42,22 @@ impl MoonWalkRepr {
             b.append('\n');
         }
 
-        b.append("-".repeat(MoonWalkRepr::RES as usize));
+        b.append("-".repeat(MoonWalkRepr::RES));
         b.append(" ".repeat(1 + dim_size));
         b.append('\n');
 
         b.append("1");
-        b.append(" ".repeat(MoonWalkRepr::RES as usize - 1 - dim_size as usize));
+        b.append(" ".repeat(MoonWalkRepr::RES - 1 - dim_size));
         b.append(dim.to_string());
         b.append(" ".repeat(1 + dim_size));
         b.append('\n');
 
         let map_buf: Vec<u8> = b.string().unwrap().into_bytes();
 
-        x = (x as f32 * (MoonWalkRepr::RES as f32 / dim as f32)) as i16;
-        y = (y as f32 * (MoonWalkRepr::RES as f32 / dim as f32)) as i16;
-        x_dest = (x_dest as f32 * (MoonWalkRepr::RES as f32 / dim as f32)) as i16;
-        y_dest = (y_dest as f32 * (MoonWalkRepr::RES as f32 / dim as f32)) as i16;
+        x = (x as f32 * (MoonWalkRepr::RES as f32 / dim as f32)) as usize;
+        y = (y as f32 * (MoonWalkRepr::RES as f32 / dim as f32)) as usize;
+        x_dest = (x_dest as f32 * (MoonWalkRepr::RES as f32 / dim as f32)) as usize;
+        y_dest = (y_dest as f32 * (MoonWalkRepr::RES as f32 / dim as f32)) as usize;
 
         let mut res = MoonWalkRepr {
             coords: (x, y),
@@ -62,59 +67,43 @@ impl MoonWalkRepr {
         };
 
         if res.coords == res.dest_coords {
-            res.change_buf(res.coords.0 as usize, res.coords.1 as usize, 'Q' as u8);
+            res.change_buf(res.coords.0, res.coords.1, 'Q' as u8);
         } else {
-            res.change_buf(res.coords.0 as usize, res.coords.1 as usize, 'O' as u8);
-            res.change_buf(
-                res.dest_coords.0 as usize,
-                res.dest_coords.1 as usize,
-                'X' as u8,
-            );
+            res.change_buf(res.coords.0, res.coords.1, 'O' as u8);
+            res.change_buf(res.dest_coords.0, res.dest_coords.1, 'X' as u8);
         }
 
         return res;
     }
 
-    fn set_pos(&mut self, x: i16, y: i16) {
+    fn set_pos(&mut self, x: usize, y: usize) {
         if (x, y) != self.coords {
             if self.coords == self.dest_coords {
-                //print!("pos {} {} {} {} X", x, y, self.coords.0, self.coords.1);
-                self.change_buf(self.coords.0 as usize, self.coords.1 as usize, 'X' as u8);
+                self.change_buf(self.coords.0, self.coords.1, 'X' as u8);
             } else {
-                //print!("pos {} {} {} {}  ", x, y, self.coords.0, self.coords.1);
-                self.change_buf(self.coords.0 as usize, self.coords.1 as usize, ' ' as u8);
+                self.change_buf(self.coords.0, self.coords.1, ' ' as u8);
             }
             if (x, y) == self.dest_coords {
-                //print!("pos {} {} {} {} Q", x, y, self.coords.0, self.coords.1);
-                self.change_buf(x as usize, y as usize, 'Q' as u8);
+                self.change_buf(x, y, 'Q' as u8);
             } else {
-                //print!("pos {} {} {} {} O", x, y, self.coords.0, self.coords.1);
-                self.change_buf(x as usize, y as usize, 'O' as u8);
+                self.change_buf(x, y, 'O' as u8);
             }
 
             self.coords = (x, y);
         }
     }
 
-    fn set_dest(&mut self, x_dest: i16, y_dest: i16) {
+    fn set_dest(&mut self, x_dest: usize, y_dest: usize) {
         if (x_dest, y_dest) != self.dest_coords {
             if self.coords == self.dest_coords {
-                //print!("dest {} {} O", x_dest, y_dest);
-                self.change_buf(self.coords.0 as usize, self.coords.1 as usize, 'O' as u8);
+                self.change_buf(self.coords.0, self.coords.1, 'O' as u8);
             } else {
-                //print!("dest {} {}  ", x_dest, y_dest);
-                self.change_buf(
-                    self.dest_coords.0 as usize,
-                    self.dest_coords.1 as usize,
-                    ' ' as u8,
-                );
+                self.change_buf(self.dest_coords.0, self.dest_coords.1, ' ' as u8);
             }
             if (x_dest, y_dest) == self.coords {
-                //print!("dest {} {} Q", x_dest, y_dest);
-                self.change_buf(x_dest as usize, y_dest as usize, 'Q' as u8);
+                self.change_buf(x_dest, y_dest, 'Q' as u8);
             } else {
-                //print!("dest {} {} X", x_dest, y_dest);
-                self.change_buf(x_dest as usize, y_dest as usize, 'X' as u8);
+                self.change_buf(x_dest, y_dest, 'X' as u8);
             }
 
             self.dest_coords = (x_dest, y_dest);
@@ -127,11 +116,17 @@ impl MoonWalkRepr {
         }
     }
 
-    fn update_stuff(&mut self, mut x: i16, mut y: i16, mut x_dest: i16, mut y_dest: i16) -> bool {
-        x = (x as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as i16;
-        y = (y as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as i16;
-        x_dest = (x_dest as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as i16;
-        y_dest = (y_dest as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as i16;
+    fn update_stuff(
+        &mut self,
+        mut x: usize,
+        mut y: usize,
+        mut x_dest: usize,
+        mut y_dest: usize,
+    ) -> bool {
+        x = (x as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as usize;
+        y = (y as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as usize;
+        x_dest = (x_dest as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as usize;
+        y_dest = (y_dest as f32 * (MoonWalkRepr::RES as f32 / self.dim as f32)) as usize;
 
         let mut res = false;
         if (x, y) != self.coords || (x_dest, y_dest) != self.dest_coords {
@@ -157,7 +152,7 @@ impl ClientUI {
     async fn new() -> Self {
         let mut cons = Cons::new("server-client-out").await;
         let mut message = cons.read().await;
-        let dim: i16;
+        let dim: usize;
         unsafe {
             dim = String::from_utf8_unchecked(message[2..].to_vec())
                 .parse()
@@ -177,9 +172,9 @@ impl ClientUI {
         return res;
     }
 
-    fn parse_position(message: &Vec<u8>) -> (i16, i16, i16, i16) {
+    fn parse_position(message: &Vec<u8>) -> (usize, usize, usize, usize) {
         let mut vals = message[2..].split(|x| x.to_owned() == ',' as u8);
-        let (x, y, x_dest, y_dest): (i16, i16, i16, i16);
+        let (x, y, x_dest, y_dest): (usize, usize, usize, usize);
         unsafe {
             x = String::from_utf8_unchecked(vals.next().unwrap().to_vec())
                 .parse()

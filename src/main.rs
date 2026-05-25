@@ -13,7 +13,7 @@ use crate::{
     server::Server,
 };
 
-// TODO: do something with the casting
+// TODO: do something with the castings
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();

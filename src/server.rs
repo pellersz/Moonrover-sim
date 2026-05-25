@@ -7,7 +7,7 @@ pub struct Server {
     client_consumer: Cons,
     moon_walker_producer: Prod,
     client_producer: Prod,
-    moon_dim: i16,
+    moon_dim: usize,
 }
 
 impl Server {
@@ -28,7 +28,7 @@ impl Server {
             splits.next();
         }
 
-        server.moon_dim = splits.next().unwrap().parse::<i16>().unwrap();
+        server.moon_dim = splits.next().unwrap().parse().unwrap();
         let message = format!("i:{}", server.moon_dim);
         server.client_producer.send(&message).await;
         println!("sent to the client: {}", &message);
@@ -73,7 +73,7 @@ impl Server {
                     .move_offset_duration(Duration::from_secs(10))
                     .await;
 
-                let mut votes: Vec<(i16, i16)> = Vec::new();
+                let mut votes: Vec<(usize, usize)> = Vec::new();
                 loop {
                     match str::from_utf8(
                         server.client_consumer.read_non_blocking().await.as_slice(),
@@ -85,7 +85,7 @@ impl Server {
                                 let mut nums = str.split(|x| x == ' ');
                                 if let (Some(first), Some(second)) = (nums.next(), nums.next()) {
                                     if let (Ok(x), Ok(y)) =
-                                        (first.parse::<i16>(), second.parse::<i16>())
+                                        (first.parse::<usize>(), second.parse::<usize>())
                                     {
                                         if x < server.moon_dim && y < server.moon_dim {
                                             votes.push((x, y));
@@ -110,7 +110,7 @@ impl Server {
                     let (x_sum, y_sum) = votes
                         .iter()
                         .fold((0_usize, 0_usize), |(x_acc, y_acc), &(x, y)| {
-                            (x_acc + x as usize, y_acc + y as usize)
+                            (x_acc + x, y_acc + y)
                         });
 
                     let message = format!("{} {}", x_sum / votes.len(), y_sum / votes.len());

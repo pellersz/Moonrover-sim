@@ -2,7 +2,7 @@ use rand::{RngExt, rngs::ThreadRng};
 
 pub struct Map {
     pub dim: usize,
-    pub heights: Vec<Vec<i16>>,
+    pub heights: Vec<Vec<u16>>,
 }
 
 impl Map {
