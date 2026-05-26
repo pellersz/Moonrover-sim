@@ -5,7 +5,6 @@ use rabbitmq_stream_client::{
 };
 
 pub struct Prod {
-    //environment: Environment,
     producer: Producer<NoDedup>,
 }
 
@@ -35,7 +34,6 @@ impl Prod {
         }
 
         Prod {
-            //environment: environment,
             producer: producer_result.unwrap(),
         }
     }

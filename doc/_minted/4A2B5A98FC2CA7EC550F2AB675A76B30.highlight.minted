@@ -1,0 +1,37 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{o}{..}\PYG{p}{.}
+\PYG{k}{pub}\PYG{+w}{ }\PYG{k}{struct}\PYG{+w}{ }\PYG{n+nc}{Cons}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{    }\PYG{n}{environment}\PYG{p}{:}\PYG{+w}{ }\PYG{n+nc}{Environment}\PYG{p}{,}
+\PYG{+w}{    }\PYG{n}{consumer}\PYG{p}{:}\PYG{+w}{ }\PYG{n+nc}{Consumer}\PYG{p}{,}
+\PYG{+w}{    }\PYG{n}{channel\PYGZus{}name}\PYG{p}{:}\PYG{+w}{ }\PYG{n+nb}{String}\PYG{p}{,}
+\PYG{p}{\PYGZcb{}}
+
+\PYG{k}{impl}\PYG{+w}{ }\PYG{n}{Cons}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{    }\PYG{k}{pub}\PYG{+w}{ }\PYG{k}{async}\PYG{+w}{ }\PYG{k}{fn}\PYG{+w}{ }\PYG{n+nf}{new}\PYG{p}{(}\PYG{n}{channel\PYGZus{}name}\PYG{p}{:}\PYG{+w}{ }\PYG{k+kp}{\PYGZam{}}\PYG{k+kt}{str}\PYG{p}{)}\PYG{+w}{ }\PYG{p}{\PYGZhy{}\PYGZgt{}}\PYG{+w}{ }\PYG{n+nc}{Self}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{        }\PYG{k+kd}{let}\PYG{+w}{ }\PYG{n}{environment\PYGZus{}result}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n}{Environment}\PYG{p}{::}\PYG{n}{builder}\PYG{p}{().}\PYG{n}{build}\PYG{p}{().}\PYG{k}{await}\PYG{p}{;}
+\PYG{+w}{        }\PYG{k}{if}\PYG{+w}{ }\PYG{k+kd}{let}\PYG{+w}{ }\PYG{n+nb}{Err}\PYG{p}{(}\PYG{n}{err}\PYG{p}{)}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n}{environment\PYGZus{}result}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{            }\PYG{n+nf+fm}{panic!}\PYG{p}{(}\PYG{l+s}{\PYGZdq{}Could not create environment: \PYGZob{}\PYGZcb{}\PYGZdq{}}\PYG{p}{,}\PYG{+w}{ }\PYG{n}{err}\PYG{p}{);}
+\PYG{+w}{        }\PYG{p}{\PYGZcb{}}
+\PYG{+w}{        }\PYG{k+kd}{let}\PYG{+w}{ }\PYG{n}{environment}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n}{environment\PYGZus{}result}\PYG{p}{.}\PYG{n}{unwrap}\PYG{p}{();}
+
+\PYG{+w}{        }\PYG{k+kd}{let}\PYG{+w}{ }\PYG{k}{mut}\PYG{+w}{ }\PYG{n}{consumer\PYGZus{}result}\PYG{p}{;}
+\PYG{+w}{        }\PYG{k}{loop}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{            }\PYG{n}{consumer\PYGZus{}result}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n}{environment}
+\PYG{+w}{                }\PYG{p}{.}\PYG{n}{consumer}\PYG{p}{()}
+\PYG{+w}{                }\PYG{p}{.}\PYG{n}{offset}\PYG{p}{(}\PYG{n}{OffsetSpecification}\PYG{p}{::}\PYG{n}{First}\PYG{p}{)}
+\PYG{+w}{                }\PYG{p}{.}\PYG{n}{build}\PYG{p}{(}\PYG{n}{channel\PYGZus{}name}\PYG{p}{)}
+\PYG{+w}{                }\PYG{p}{.}\PYG{k}{await}\PYG{p}{;}
+
+\PYG{+w}{            }\PYG{k}{if}\PYG{+w}{ }\PYG{k+kd}{let}\PYG{+w}{ }\PYG{n+nb}{Ok}\PYG{p}{(}\PYG{n}{\PYGZus{}}\PYG{p}{)}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n}{consumer\PYGZus{}result}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{                }\PYG{k}{break}\PYG{p}{;}
+\PYG{+w}{            }\PYG{p}{\PYGZcb{}}
+\PYG{+w}{        }\PYG{p}{\PYGZcb{}}
+
+\PYG{+w}{        }\PYG{n}{Cons}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{            }\PYG{n}{environment}\PYG{p}{:}\PYG{+w}{ }\PYG{n+nc}{environment}\PYG{p}{,}
+\PYG{+w}{            }\PYG{n}{consumer}\PYG{p}{:}\PYG{+w}{ }\PYG{n+nc}{consumer\PYGZus{}result}\PYG{p}{.}\PYG{n}{unwrap}\PYG{p}{(),}
+\PYG{+w}{            }\PYG{n}{channel\PYGZus{}name}\PYG{p}{:}\PYG{+w}{ }\PYG{n+nc}{channel\PYGZus{}name}\PYG{p}{.}\PYG{n}{to\PYGZus{}owned}\PYG{p}{(),}
+\PYG{+w}{        }\PYG{p}{\PYGZcb{}}
+\PYG{+w}{    }\PYG{p}{\PYGZcb{}}
+\PYG{o}{..}\PYG{p}{.}
+\end{MintedVerbatim}
